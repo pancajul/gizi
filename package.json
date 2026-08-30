@@ -1,0 +1,6 @@
+{
+  "name": "scan-kalori-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web app scan kalori dari foto makanan, pakai Gemini API (gratis), deploy di Vercel."
+}
