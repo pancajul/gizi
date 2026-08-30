@@ -62,7 +62,7 @@ async function downloadPhotoAsBase64(fileId) {
 
 async function analyzeWithGemini(base64, mimeType) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
