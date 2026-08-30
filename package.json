@@ -2,5 +2,6 @@
   "name": "telegram-bot-kalori",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Bot Telegram deteksi kalori dari foto makanan, pakai Gemini API (gratis), hosting di Vercel (gratis, webhook-based)."
 }
