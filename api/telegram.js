@@ -1,8 +1,15 @@
 // Webhook handler untuk bot Telegram (Vercel serverless function)
 // Telegram akan memanggil endpoint ini setiap kali ada pesan baru masuk ke bot.
+//
 // Env vars yang dibutuhkan (set di Vercel > Settings > Environment Variables):
 //   TELEGRAM_BOT_TOKEN  -> token dari @BotFather
 //   GEMINI_API_KEY      -> API key gratis dari https://ai.google.dev
+
+// Naikkan batas waktu eksekusi function jadi 60 detik (default Vercel cuma 10 detik),
+// supaya sempat: download foto -> panggil Gemini -> kirim balasan.
+export const config = {
+  maxDuration: 60,
+};
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -148,6 +155,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Error di webhook:', err);
+    try {
+      const chatId = req.body?.message?.chat?.id;
+      if (chatId) {
+        await sendMessage(chatId, '⚠️ Maaf, ada kendala saat menganalisis foto. Coba kirim ulang ya.');
+      }
+    } catch (notifyErr) {
+      console.error('Gagal kirim pesan error ke user:', notifyErr);
+    }
     return res.status(200).json({ ok: true }); // tetap 200 supaya Telegram tidak spam retry
   }
 }
