@@ -1,6 +1,5 @@
 // Webhook handler untuk bot Telegram (Vercel serverless function)
 // Telegram akan memanggil endpoint ini setiap kali ada pesan baru masuk ke bot.
-//
 // Env vars yang dibutuhkan (set di Vercel > Settings > Environment Variables):
 //   TELEGRAM_BOT_TOKEN  -> token dari @BotFather
 //   GEMINI_API_KEY      -> API key gratis dari https://ai.google.dev
