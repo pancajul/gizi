@@ -27,11 +27,6 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
-// Model Gemini yang dipakai. "gemini-flash-latest" adalah ALIAS yang selalu
-// mengarah ke versi Flash terbaru dari Google, jadi tidak perlu diganti manual
-// tiap kali Google merilis versi baru atau mem-pensiunkan versi lama.
-const GEMINI_MODEL = 'gemini-flash-latest';
-
 const SYSTEM_PROMPT = `Kamu adalah asisten nutrisi ahli. Kamu akan diberikan foto makanan.
 Tugasmu:
 1. Identifikasi jenis makanan/minuman yang ada di foto (bisa lebih dari satu item).
@@ -93,11 +88,18 @@ async function downloadPhotoAsBase64(fileId) {
   return { base64, mimeType };
 }
 
-// -------------------------------------------------------------------------
-// STEP 2: kirim foto ke Gemini API, minta analisis dalam format JSON
-// -------------------------------------------------------------------------
-async function analyzeWithGemini(base64, mimeType) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+// Model utama, plus model cadangan kalau yang utama lagi overload (503).
+// "-lite" biasanya punya jalur kapasitas terpisah jadi kadang masih available
+// walau versi reguler lagi penuh.
+const GEMINI_MODEL_PRIMARY = 'gemini-flash-latest';
+const GEMINI_MODEL_FALLBACK = 'gemini-flash-lite-latest';
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGemini(model, base64, mimeType) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -117,11 +119,10 @@ async function analyzeWithGemini(base64, mimeType) {
 
   const data = await res.json();
 
-  // Selalu cek res.ok dulu -- kalau tidak, error dari Google (misal API key
-  // salah, model tidak ditemukan, kuota habis) akan tertelan diam-diam dan
-  // menyebabkan error yang membingungkan di langkah berikutnya.
   if (!res.ok) {
-    throw new Error(`Gemini API error (${res.status}): ${data?.error?.message || JSON.stringify(data)}`);
+    const err = new Error(`Gemini API error (${res.status}): ${data?.error?.message || JSON.stringify(data)}`);
+    err.status = res.status;
+    throw err;
   }
 
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -136,6 +137,36 @@ async function analyzeWithGemini(base64, mimeType) {
   } catch {
     throw new Error(`Gagal membaca hasil dari Gemini sebagai JSON. Teks asli: ${cleaned.slice(0, 300)}`);
   }
+}
+
+// -------------------------------------------------------------------------
+// STEP 2: kirim foto ke Gemini API, dengan retry + fallback kalau overload (503)
+// -------------------------------------------------------------------------
+async function analyzeWithGemini(base64, mimeType) {
+  const attempts = [
+    { model: GEMINI_MODEL_PRIMARY, delayBefore: 0 },
+    { model: GEMINI_MODEL_PRIMARY, delayBefore: 2000 },   // retry model utama setelah 2 detik
+    { model: GEMINI_MODEL_FALLBACK, delayBefore: 0 },      // baru coba model cadangan
+  ];
+
+  let lastError;
+
+  for (const attempt of attempts) {
+    if (attempt.delayBefore) await sleep(attempt.delayBefore);
+
+    try {
+      return await callGemini(attempt.model, base64, mimeType);
+    } catch (err) {
+      lastError = err;
+      // Kalau errornya BUKAN karena overload (503), langsung berhenti,
+      // percuma retry (misal API key salah -- retry tidak akan membantu).
+      if (err.status && err.status !== 503) {
+        throw err;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 // -------------------------------------------------------------------------
