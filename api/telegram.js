@@ -35,8 +35,9 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
-const GEMINI_MODEL_PRIMARY = 'gemini-flash-latest';
-const GEMINI_MODEL_FALLBACK = 'gemini-flash-lite-latest';
+const GEMINI_MODEL_PRIMARY = 'gemini-flash-lite-latest';
+const GEMINI_MODEL_FALLBACK = 'gemini-flash-latest';
+const GEMINI_TIMEOUT_MS = 20000;
 
 // =========================================================================
 // TELEGRAM HELPERS
@@ -81,15 +82,30 @@ function sleep(ms) {
 
 async function callGemini(model, parts) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: { temperature: 0.4 },
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.4 },
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      const err = new Error(`Gemini timeout setelah ${GEMINI_TIMEOUT_MS / 1000} detik`);
+      err.status = 503; // treat as overload -> boleh retry/fallback
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = await res.json();
 
