@@ -25,14 +25,24 @@ function headers(extra = {}) {
 
 async function supabaseRequest(path, options = {}) {
   const url = `${SUPABASE_URL}/rest/v1/${path}`;
-  const res = await fetch(url, { ...options, headers: headers(options.headers) });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers: headers(options.headers), signal: controller.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`Supabase timeout setelah 15s di ${path}`);
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`Supabase error (${res.status}) di ${path}: ${errText}`);
   }
 
-  // Beberapa request (PATCH tanpa Prefer header) tidak punya body balasan
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
