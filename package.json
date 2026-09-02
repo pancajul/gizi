@@ -1,7 +1,7 @@
 {
-  "name": "bot-kalori-telegram",
+  "name": "gizi-assistant",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Bot Telegram deteksi kalori dari foto makanan. Gratis: hosting di Vercel, AI vision di Gemini API."
+  "description": "Asisten nutrisi Telegram: onboarding profil, catat makan/olahraga via chat/foto, reminder terjadwal. Gratis: Vercel + Gemini API + Supabase."
 }
