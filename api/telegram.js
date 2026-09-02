@@ -114,7 +114,6 @@ async function callGemini(model, parts) {
 async function askGemini(parts) {
   const attempts = [
     { model: GEMINI_MODEL_PRIMARY, delayBefore: 0 },
-    { model: GEMINI_MODEL_PRIMARY, delayBefore: 2000 },
     { model: GEMINI_MODEL_FALLBACK, delayBefore: 0 },
   ];
 
