@@ -43,8 +43,21 @@ const GEMINI_TIMEOUT_MS = 20000;
 // TELEGRAM HELPERS
 // =========================================================================
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`Request timeout setelah ${timeoutMs / 1000}s: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function telegramApi(method, payload) {
-  const res = await fetch(`${TELEGRAM_API}/${method}`, {
+  const res = await fetchWithTimeout(`${TELEGRAM_API}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -63,7 +76,7 @@ function sendMessage(chatId, text) {
 async function downloadPhotoAsBase64(fileId) {
   const fileInfo = await telegramApi('getFile', { file_id: fileId });
   const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileInfo.file_path}`;
-  const fileRes = await fetch(fileUrl);
+  const fileRes = await fetchWithTimeout(fileUrl);
   if (!fileRes.ok) throw new Error(`Gagal download foto (status ${fileRes.status})`);
   const arrayBuffer = await fileRes.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString('base64');
